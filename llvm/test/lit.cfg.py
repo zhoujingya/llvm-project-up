@@ -190,6 +190,7 @@ tools.extend(
         "llvm-dis",
         "llvm-dwarfdump",
         "llvm-dwarfutil",
+        "llvm-dwp",
         "llvm-dlltool",
         "llvm-exegesis",
         "llvm-extract",
@@ -414,10 +415,11 @@ if config.link_llvm_dylib:
     config.available_features.add("llvm-dylib")
     config.substitutions.append(
         (
+            # libLLVM.so.19.0git
             "%llvmdylib",
-            "{}/libLLVM-{}{}".format(
-                config.llvm_shlib_dir, config.llvm_dylib_version, config.llvm_shlib_ext
-            ),
+            "{}/libLLVM{}.{}".format(
+                config.llvm_shlib_dir, config.llvm_shlib_ext, config.llvm_dylib_version
+            )
         )
     )
 
@@ -612,3 +614,6 @@ if "MemoryWithOrigins" in config.llvm_use_sanitizer:
 # "OBJECT_MODE" to 'any' by default on AIX OS.
 if "system-aix" in config.available_features:
     config.environment["OBJECT_MODE"] = "any"
+
+if config.has_logf128:
+    config.available_features.add("has_logf128")

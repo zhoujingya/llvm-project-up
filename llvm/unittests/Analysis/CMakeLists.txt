@@ -1,6 +1,7 @@
 set(LLVM_LINK_COMPONENTS
   Analysis
   AsmParser
+  CodeGen
   Core
   Passes
   Support
@@ -40,8 +41,8 @@ set(ANALYSIS_TEST_SOURCES
   PluginInlineAdvisorAnalysisTest.cpp
   PluginInlineOrderAnalysisTest.cpp
   ProfileSummaryInfoTest.cpp
+  ReplaceWithVecLibTest.cpp
   ScalarEvolutionTest.cpp
-  VectorFunctionABITest.cpp
   SparsePropagation.cpp
   TargetLibraryInfoTest.cpp
   TensorSpecTest.cpp
@@ -77,6 +78,12 @@ endif()
 # Export symbols from the plugins shared objects.
 if(NOT WIN32)
   export_executable_symbols_for_plugins(AnalysisTests)
+endif()
+
+include(CheckCXXSymbolExists)
+check_cxx_symbol_exists(logf128 math.h HAS_LOGF128)
+if(HAS_LOGF128)
+  target_compile_definitions(AnalysisTests PRIVATE HAS_LOGF128)
 endif()
 
 add_subdirectory(InlineAdvisorPlugin)

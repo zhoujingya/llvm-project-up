@@ -134,6 +134,7 @@ public:
   const_iterator end() const { return begin() + NumParams; }
 
   unsigned size() const { return NumParams; }
+  bool empty() const { return NumParams == 0; }
 
   ArrayRef<NamedDecl *> asArray() { return llvm::ArrayRef(begin(), end()); }
   ArrayRef<const NamedDecl*> asArray() const {
@@ -241,9 +242,6 @@ public:
 /// A template argument list.
 class TemplateArgumentList final
     : private llvm::TrailingObjects<TemplateArgumentList, TemplateArgument> {
-  /// The template argument list.
-  const TemplateArgument *Arguments;
-
   /// The number of template arguments in this template
   /// argument list.
   unsigned NumArguments;
@@ -258,29 +256,10 @@ public:
   TemplateArgumentList(const TemplateArgumentList &) = delete;
   TemplateArgumentList &operator=(const TemplateArgumentList &) = delete;
 
-  /// Type used to indicate that the template argument list itself is a
-  /// stack object. It does not own its template arguments.
-  enum OnStackType { OnStack };
-
   /// Create a new template argument list that copies the given set of
   /// template arguments.
   static TemplateArgumentList *CreateCopy(ASTContext &Context,
                                           ArrayRef<TemplateArgument> Args);
-
-  /// Construct a new, temporary template argument list on the stack.
-  ///
-  /// The template argument list does not own the template arguments
-  /// provided.
-  explicit TemplateArgumentList(OnStackType, ArrayRef<TemplateArgument> Args)
-      : Arguments(Args.data()), NumArguments(Args.size()) {}
-
-  /// Produces a shallow copy of the given template argument list.
-  ///
-  /// This operation assumes that the input argument list outlives it.
-  /// This takes the list as a pointer to avoid looking like a copy
-  /// constructor, since this really isn't safe to use that way.
-  explicit TemplateArgumentList(const TemplateArgumentList *Other)
-      : Arguments(Other->data()), NumArguments(Other->size()) {}
 
   /// Retrieve the template argument at a given index.
   const TemplateArgument &get(unsigned Idx) const {
@@ -301,7 +280,9 @@ public:
   unsigned size() const { return NumArguments; }
 
   /// Retrieve a pointer to the template argument list.
-  const TemplateArgument *data() const { return Arguments; }
+  const TemplateArgument *data() const {
+    return getTrailingObjects<TemplateArgument>();
+  }
 };
 
 void *allocateDefaultArgStorageChain(const ASTContext &C);
@@ -1408,14 +1389,14 @@ class NonTypeTemplateParmDecl final
 
   NonTypeTemplateParmDecl(DeclContext *DC, SourceLocation StartLoc,
                           SourceLocation IdLoc, unsigned D, unsigned P,
-                          IdentifierInfo *Id, QualType T,
+                          const IdentifierInfo *Id, QualType T,
                           bool ParameterPack, TypeSourceInfo *TInfo)
       : DeclaratorDecl(NonTypeTemplateParm, DC, IdLoc, Id, T, TInfo, StartLoc),
         TemplateParmPosition(D, P), ParameterPack(ParameterPack) {}
 
   NonTypeTemplateParmDecl(DeclContext *DC, SourceLocation StartLoc,
                           SourceLocation IdLoc, unsigned D, unsigned P,
-                          IdentifierInfo *Id, QualType T,
+                          const IdentifierInfo *Id, QualType T,
                           TypeSourceInfo *TInfo,
                           ArrayRef<QualType> ExpandedTypes,
                           ArrayRef<TypeSourceInfo *> ExpandedTInfos);
@@ -1423,12 +1404,12 @@ class NonTypeTemplateParmDecl final
 public:
   static NonTypeTemplateParmDecl *
   Create(const ASTContext &C, DeclContext *DC, SourceLocation StartLoc,
-         SourceLocation IdLoc, unsigned D, unsigned P, IdentifierInfo *Id,
+         SourceLocation IdLoc, unsigned D, unsigned P, const IdentifierInfo *Id,
          QualType T, bool ParameterPack, TypeSourceInfo *TInfo);
 
   static NonTypeTemplateParmDecl *
   Create(const ASTContext &C, DeclContext *DC, SourceLocation StartLoc,
-         SourceLocation IdLoc, unsigned D, unsigned P, IdentifierInfo *Id,
+         SourceLocation IdLoc, unsigned D, unsigned P, const IdentifierInfo *Id,
          QualType T, TypeSourceInfo *TInfo, ArrayRef<QualType> ExpandedTypes,
          ArrayRef<TypeSourceInfo *> ExpandedTInfos);
 
@@ -1600,26 +1581,36 @@ class TemplateTemplateParmDecl final
       DefaultArgStorage<TemplateTemplateParmDecl, TemplateArgumentLoc *>;
   DefArgStorage DefaultArgument;
 
+  /// Whether this template template parameter was declaration with
+  /// the 'typename' keyword.
+  ///
+  /// If false, it was declared with the 'class' keyword.
+  LLVM_PREFERRED_TYPE(bool)
+  unsigned Typename : 1;
+
   /// Whether this parameter is a parameter pack.
-  bool ParameterPack;
+  LLVM_PREFERRED_TYPE(bool)
+  unsigned ParameterPack : 1;
 
   /// Whether this template template parameter is an "expanded"
   /// parameter pack, meaning that it is a pack expansion and we
   /// already know the set of template parameters that expansion expands to.
-  bool ExpandedParameterPack = false;
+  LLVM_PREFERRED_TYPE(bool)
+  unsigned ExpandedParameterPack : 1;
 
   /// The number of parameters in an expanded parameter pack.
   unsigned NumExpandedParams = 0;
 
-  TemplateTemplateParmDecl(DeclContext *DC, SourceLocation L,
-                           unsigned D, unsigned P, bool ParameterPack,
-                           IdentifierInfo *Id, TemplateParameterList *Params)
+  TemplateTemplateParmDecl(DeclContext *DC, SourceLocation L, unsigned D,
+                           unsigned P, bool ParameterPack, IdentifierInfo *Id,
+                           bool Typename, TemplateParameterList *Params)
       : TemplateDecl(TemplateTemplateParm, DC, L, Id, Params),
-        TemplateParmPosition(D, P), ParameterPack(ParameterPack) {}
+        TemplateParmPosition(D, P), Typename(Typename),
+        ParameterPack(ParameterPack), ExpandedParameterPack(false) {}
 
-  TemplateTemplateParmDecl(DeclContext *DC, SourceLocation L,
-                           unsigned D, unsigned P,
-                           IdentifierInfo *Id, TemplateParameterList *Params,
+  TemplateTemplateParmDecl(DeclContext *DC, SourceLocation L, unsigned D,
+                           unsigned P, IdentifierInfo *Id, bool Typename,
+                           TemplateParameterList *Params,
                            ArrayRef<TemplateParameterList *> Expansions);
 
   void anchor() override;
@@ -1632,14 +1623,13 @@ public:
   static TemplateTemplateParmDecl *Create(const ASTContext &C, DeclContext *DC,
                                           SourceLocation L, unsigned D,
                                           unsigned P, bool ParameterPack,
-                                          IdentifierInfo *Id,
+                                          IdentifierInfo *Id, bool Typename,
                                           TemplateParameterList *Params);
-  static TemplateTemplateParmDecl *Create(const ASTContext &C, DeclContext *DC,
-                                          SourceLocation L, unsigned D,
-                                          unsigned P,
-                                          IdentifierInfo *Id,
-                                          TemplateParameterList *Params,
-                                 ArrayRef<TemplateParameterList *> Expansions);
+  static TemplateTemplateParmDecl *
+  Create(const ASTContext &C, DeclContext *DC, SourceLocation L, unsigned D,
+         unsigned P, IdentifierInfo *Id, bool Typename,
+         TemplateParameterList *Params,
+         ArrayRef<TemplateParameterList *> Expansions);
 
   static TemplateTemplateParmDecl *CreateDeserialized(ASTContext &C,
                                                       unsigned ID);
@@ -1652,6 +1642,14 @@ public:
   using TemplateParmPosition::getPosition;
   using TemplateParmPosition::setPosition;
   using TemplateParmPosition::getIndex;
+
+  /// Whether this template template parameter was declared with
+  /// the 'typename' keyword.
+  bool wasDeclaredWithTypename() const { return Typename; }
+
+  /// Set whether this template template parameter was declared with
+  /// the 'typename' or 'class' keyword.
+  void setDeclaredWithTypename(bool withTypename) { Typename = withTypename; }
 
   /// Whether this template template parameter is a template
   /// parameter pack.

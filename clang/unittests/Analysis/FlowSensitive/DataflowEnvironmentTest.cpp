@@ -24,6 +24,7 @@ namespace {
 
 using namespace clang;
 using namespace dataflow;
+using ::clang::dataflow::test::findValueDecl;
 using ::clang::dataflow::test::getFieldValue;
 using ::testing::Contains;
 using ::testing::IsNull;
@@ -56,6 +57,52 @@ TEST_F(EnvironmentTest, FlowCondition) {
   auto &NotX = A.makeNot(X);
   EXPECT_FALSE(Env.proves(NotX));
   EXPECT_FALSE(Env.allows(NotX));
+}
+
+TEST_F(EnvironmentTest, SetAndGetValueOnCfgOmittedNodes) {
+  // Check that we can set a value on an expression that is omitted from the CFG
+  // (see `ignoreCFGOmittedNodes()`), then retrieve that same value from the
+  // expression. This is a regression test; `setValue()` and `getValue()`
+  // previously did not use `ignoreCFGOmittedNodes()` consistently.
+
+  using namespace ast_matchers;
+
+  std::string Code = R"cc(
+    struct S {
+      int f();
+    };
+    void target() {
+      // Method call on a temporary produces an `ExprWithCleanups`.
+      S().f();
+      (1);
+    }
+  )cc";
+
+  auto Unit =
+      tooling::buildASTFromCodeWithArgs(Code, {"-fsyntax-only", "-std=c++17"});
+  auto &Context = Unit->getASTContext();
+
+  ASSERT_EQ(Context.getDiagnostics().getClient()->getNumErrors(), 0U);
+
+  const ExprWithCleanups *WithCleanups = selectFirst<ExprWithCleanups>(
+      "cleanups",
+      match(exprWithCleanups(hasType(isInteger())).bind("cleanups"), Context));
+  ASSERT_NE(WithCleanups, nullptr);
+
+  const ParenExpr *Paren = selectFirst<ParenExpr>(
+      "paren", match(parenExpr(hasType(isInteger())).bind("paren"), Context));
+  ASSERT_NE(Paren, nullptr);
+
+  Environment Env(DAContext);
+  IntegerValue *Val1 =
+      cast<IntegerValue>(Env.createValue(Unit->getASTContext().IntTy));
+  Env.setValue(*WithCleanups, *Val1);
+  EXPECT_EQ(Env.getValue(*WithCleanups), Val1);
+
+  IntegerValue *Val2 =
+      cast<IntegerValue>(Env.createValue(Unit->getASTContext().IntTy));
+  Env.setValue(*Paren, *Val2);
+  EXPECT_EQ(Env.getValue(*Paren), Val2);
 }
 
 TEST_F(EnvironmentTest, CreateValueRecursiveType) {
@@ -144,12 +191,55 @@ TEST_F(EnvironmentTest, JoinRecords) {
     Env2.setValue(Loc, Val2);
 
     Environment::ValueModel Model;
-    Environment EnvJoined = Environment::join(Env1, Env2, Model);
+    Environment EnvJoined =
+        Environment::join(Env1, Env2, Model, Environment::DiscardExprState);
     auto *JoinedVal = cast<RecordValue>(EnvJoined.getValue(Loc));
     EXPECT_NE(JoinedVal, &Val1);
     EXPECT_NE(JoinedVal, &Val2);
     EXPECT_EQ(&JoinedVal->getLoc(), &Loc);
   }
+}
+
+TEST_F(EnvironmentTest, DifferentReferenceLocInJoin) {
+  // This tests the case where the storage location for a reference-type
+  // variable is different for two states being joined. We used to believe this
+  // could not happen and therefore had an assertion disallowing this; this test
+  // exists to demonstrate that we can handle this condition without a failing
+  // assertion. See also the discussion here:
+  // https://discourse.llvm.org/t/70086/6
+
+  using namespace ast_matchers;
+
+  std::string Code = R"cc(
+    void f(int &ref) {}
+  )cc";
+
+  auto Unit =
+      tooling::buildASTFromCodeWithArgs(Code, {"-fsyntax-only", "-std=c++11"});
+  auto &Context = Unit->getASTContext();
+
+  ASSERT_EQ(Context.getDiagnostics().getClient()->getNumErrors(), 0U);
+
+  const ValueDecl *Ref = findValueDecl(Context, "ref");
+
+  Environment Env1(DAContext);
+  StorageLocation &Loc1 = Env1.createStorageLocation(Context.IntTy);
+  Env1.setStorageLocation(*Ref, Loc1);
+
+  Environment Env2(DAContext);
+  StorageLocation &Loc2 = Env2.createStorageLocation(Context.IntTy);
+  Env2.setStorageLocation(*Ref, Loc2);
+
+  EXPECT_NE(&Loc1, &Loc2);
+
+  Environment::ValueModel Model;
+  Environment EnvJoined =
+      Environment::join(Env1, Env2, Model, Environment::DiscardExprState);
+
+  // Joining environments with different storage locations for the same
+  // declaration results in the declaration being removed from the joined
+  // environment.
+  EXPECT_EQ(EnvJoined.getStorageLocation(*Ref), nullptr);
 }
 
 TEST_F(EnvironmentTest, InitGlobalVarsFun) {
