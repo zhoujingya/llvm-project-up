@@ -66,22 +66,6 @@ SystemZFrameLowering::create(const SystemZSubtarget &STI) {
   return std::make_unique<SystemZELFFrameLowering>();
 }
 
-MachineBasicBlock::iterator SystemZFrameLowering::eliminateCallFramePseudoInstr(
-    MachineFunction &MF, MachineBasicBlock &MBB,
-    MachineBasicBlock::iterator MI) const {
-  switch (MI->getOpcode()) {
-  case SystemZ::ADJCALLSTACKDOWN:
-  case SystemZ::ADJCALLSTACKUP:
-    assert(hasReservedCallFrame(MF) &&
-           "ADJSTACKDOWN and ADJSTACKUP should be no-ops");
-    return MBB.erase(MI);
-    break;
-
-  default:
-    llvm_unreachable("Unexpected call frame instruction");
-  }
-}
-
 namespace {
 struct SZFrameSortingObj {
   bool IsValid = false;     // True if we care about this Object.
@@ -840,8 +824,7 @@ void SystemZELFFrameLowering::inlineStackProbe(
   StackAllocMI->eraseFromParent();
   if (DoneMBB != nullptr) {
     // Compute the live-in lists for the new blocks.
-    recomputeLiveIns(*DoneMBB);
-    recomputeLiveIns(*LoopMBB);
+    fullyRecomputeLiveIns({DoneMBB, LoopMBB});
   }
 }
 
@@ -1439,8 +1422,7 @@ void SystemZXPLINKFrameLowering::inlineStackProbe(
   StackAllocMI->eraseFromParent();
 
   // Compute the live-in lists for the new blocks.
-  recomputeLiveIns(*NextMBB);
-  recomputeLiveIns(*StackExtMBB);
+  fullyRecomputeLiveIns({StackExtMBB, NextMBB});
 }
 
 bool SystemZXPLINKFrameLowering::hasFP(const MachineFunction &MF) const {

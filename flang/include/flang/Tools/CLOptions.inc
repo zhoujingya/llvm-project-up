@@ -10,6 +10,7 @@
 /// debugging the test tools. This file must be included into the tool.
 
 #include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
+#include "mlir/Dialect/LLVMIR/LLVMAttrs.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
@@ -122,7 +123,9 @@ static void addCanonicalizerPassWithoutRegionSimplification(
 
 inline void addCfgConversionPass(mlir::PassManager &pm) {
   addNestedPassConditionally<mlir::func::FuncOp>(
-      pm, disableCfgConversion, fir::createFirToCfgPass);
+      pm, disableCfgConversion, fir::createFirToCfgOnFuncPass);
+  addNestedPassConditionally<mlir::omp::DeclareReductionOp>(
+      pm, disableCfgConversion, fir::createFirToCfgOnReductionPass);
 }
 
 inline void addAVC(
@@ -152,9 +155,9 @@ inline void addTargetRewritePass(mlir::PassManager &pm) {
   });
 }
 
-inline void addDebugFoundationPass(mlir::PassManager &pm) {
+inline void addDebugInfoPass(mlir::PassManager &pm) {
   addPassConditionally(pm, disableDebugFoundation,
-      [&]() { return fir::createAddDebugFoundationPass(); });
+      [&]() { return fir::createAddDebugInfoPass(); });
 }
 
 inline void addFIRToLLVMPass(
@@ -273,6 +276,7 @@ inline void createHLFIRToFIRPassPipeline(
 /// rather than the host device.
 inline void createOpenMPFIRPassPipeline(
     mlir::PassManager &pm, bool isTargetDevice) {
+  pm.addPass(fir::createOMPDescriptorMapInfoGenPass());
   pm.addPass(fir::createOMPMarkDeclareTargetPass());
   if (isTargetDevice)
     pm.addPass(fir::createOMPFunctionFilteringPass());
@@ -284,7 +288,7 @@ inline void createDebugPasses(
   // Currently only -g1, -g, -gline-tables-only supported
   switch (debugLevel) {
   case llvm::codegenoptions::DebugLineTablesOnly:
-    addDebugFoundationPass(pm);
+    addDebugInfoPass(pm);
     return;
   case llvm::codegenoptions::NoDebugInfo:
     return;
@@ -292,7 +296,7 @@ inline void createDebugPasses(
     // TODO: Add cases and passes for other debug options.
     // All other debug options not implemented yet, currently emits warning
     // and generates as much debug information as possible.
-    addDebugFoundationPass(pm);
+    addDebugInfoPass(pm);
     return;
   }
 }
@@ -310,6 +314,27 @@ inline void createDefaultFIRCodeGenPassPipeline(
 
   if (config.VScaleMin != 0)
     pm.addPass(fir::createVScaleAttrPass({config.VScaleMin, config.VScaleMax}));
+
+  // Add function attributes
+  fir::FunctionAttrTypes functionAttrs;
+
+  if (config.FramePointerKind != llvm::FramePointerKind::None ||
+      config.NoInfsFPMath || config.NoNaNsFPMath || config.ApproxFuncFPMath ||
+      config.NoSignedZerosFPMath || config.UnsafeFPMath) {
+    if (config.FramePointerKind == llvm::FramePointerKind::NonLeaf)
+      functionAttrs.framePointerKind =
+          mlir::LLVM::framePointerKind::FramePointerKind::NonLeaf;
+    else if (config.FramePointerKind == llvm::FramePointerKind::All)
+      functionAttrs.framePointerKind =
+          mlir::LLVM::framePointerKind::FramePointerKind::All;
+    else
+      functionAttrs.framePointerKind =
+          mlir::LLVM::framePointerKind::FramePointerKind::None;
+
+    pm.addPass(fir::createFunctionAttrPass(functionAttrs, config.NoInfsFPMath,
+        config.NoNaNsFPMath, config.ApproxFuncFPMath,
+        config.NoSignedZerosFPMath, config.UnsafeFPMath));
+  }
 
   fir::addFIRToLLVMPass(pm, config);
 }
