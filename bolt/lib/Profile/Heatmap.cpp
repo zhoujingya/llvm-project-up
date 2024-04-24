@@ -164,6 +164,7 @@ void Heatmap::print(raw_ostream &OS) const {
 
   // Print map legend
   OS << "Legend:\n";
+  OS << "\nRegions:\n";
   uint64_t PrevValue = 0;
   for (unsigned I = 0; I < sizeof(Range) / sizeof(Range[0]); ++I) {
     const uint64_t Value = Range[I];
@@ -171,6 +172,16 @@ void Heatmap::print(raw_ostream &OS) const {
     printValue(Value, 'o', /*ResetColor=*/true);
     OS << " : (" << PrevValue << ", " << Value << "]\n";
     PrevValue = Value;
+  }
+
+  {
+    OS << "\nSections:\n";
+    int Idx = 0;
+    for (auto TxtSeg : TextSections) {
+      OS << static_cast<char>('A' + ((Idx++) % 26)) << ": " << TxtSeg.Name
+         << ": 0x" <<  Twine::utohexstr(TxtSeg.BeginAddress) << "-0x"
+         << Twine::utohexstr(TxtSeg.EndAddress) << "\n";
+    }
   }
 
   // Pos - character position from right in hex form.

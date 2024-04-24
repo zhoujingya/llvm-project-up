@@ -2009,8 +2009,9 @@ std::error_code DataAggregator::parseMMapEvents() {
       return MI.second.PID == FileMMapInfo.second.PID;
     });
 
-    if (PIDExists)
-      continue;
+    // let duplicates to the multimap.
+    // if (PIDExists)
+    //   continue;
 
     GlobalMMapInfo.insert(FileMMapInfo);
   }
@@ -2067,7 +2068,17 @@ std::error_code DataAggregator::parseMMapEvents() {
       }
     }
 
-    BinaryMMapInfo.insert(std::make_pair(MMapInfo.PID, MMapInfo));
+    // The mapping was already in place, but there are cases where the size
+    // is wrong. Fix it if needed.
+    if(!BinaryMMapInfo.insert(std::make_pair(MMapInfo.PID, MMapInfo)).second) {
+      auto EndAddress = MMapInfo.MMapAddress + MMapInfo.Size;
+      auto FixedSize = EndAddress - BinaryMMapInfo[MMapInfo.PID].BaseAddress;
+
+      if (FixedSize != BinaryMMapInfo[MMapInfo.PID].Size) {
+          outs() << "MMap size fixed: " << Twine::utohexstr(FixedSize) << " \n";
+         BinaryMMapInfo[MMapInfo.PID].Size = FixedSize;
+      }
+    }
   }
 
   if (BinaryMMapInfo.empty()) {
