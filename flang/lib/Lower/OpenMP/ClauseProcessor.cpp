@@ -973,7 +973,7 @@ bool ClauseProcessor::processEnter(
 }
 
 bool ClauseProcessor::processUseDeviceAddr(
-    mlir::omp::UseDeviceClauseOps &result,
+    mlir::omp::UseDeviceAddrClauseOps &result,
     llvm::SmallVectorImpl<mlir::Type> &useDeviceTypes,
     llvm::SmallVectorImpl<mlir::Location> &useDeviceLocs,
     llvm::SmallVectorImpl<const semantics::Symbol *> &useDeviceSyms) const {
@@ -985,7 +985,7 @@ bool ClauseProcessor::processUseDeviceAddr(
 }
 
 bool ClauseProcessor::processUseDevicePtr(
-    mlir::omp::UseDeviceClauseOps &result,
+    mlir::omp::UseDevicePtrClauseOps &result,
     llvm::SmallVectorImpl<mlir::Type> &useDeviceTypes,
     llvm::SmallVectorImpl<mlir::Location> &useDeviceLocs,
     llvm::SmallVectorImpl<const semantics::Symbol *> &useDeviceSyms) const {
