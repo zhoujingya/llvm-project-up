@@ -18,6 +18,8 @@
 
 namespace mlir {
 
+class ConversionTarget;
+
 /// This enum controls which ops are put on the worklist during a greedy
 /// pattern rewrite.
 enum class GreedyRewriteStrictness {
@@ -187,6 +189,10 @@ applyOpPatternsAndFold(ArrayRef<Operation *> ops,
                        const FrozenRewritePatternSet &patterns,
                        GreedyRewriteConfig config = GreedyRewriteConfig(),
                        bool *changed = nullptr, bool *allErased = nullptr);
+
+LogicalResult
+applyPartialOneShotConversion(Operation *op, const ConversionTarget &target,
+                              const FrozenRewritePatternSet &patterns);
 
 } // namespace mlir
 
