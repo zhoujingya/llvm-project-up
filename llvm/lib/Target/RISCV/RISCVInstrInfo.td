@@ -571,6 +571,14 @@ class ALU_rr<bits<7> funct7, bits<3> funct3, string opcodestr,
   let isCommutable = Commutable;
 }
 
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0, Constraints = "$rd_wb = $rd" in
+class ALU_rrr<bits<7> funct7, bits<3> funct3, string opcodestr,
+             bit Commutable = 0>
+    : RVInstR<funct7, funct3, OPC_OP, (outs GPR:$rd_wb), (ins GPR:$rs1, GPR:$rs2, GPR:$rd),
+              opcodestr, "$rd, $rs1, $rs2"> {
+  let isCommutable = Commutable;
+}
+
 let hasNoSchedulingInfo = 1,
     hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 class CSR_ir<bits<3> funct3, string opcodestr>
@@ -685,6 +693,9 @@ def SRAI : Shift_ri<0b01000, 0b101, "srai">,
            Sched<[WriteShiftImm, ReadShiftImm]>;
 
 def ADD  : ALU_rr<0b0000000, 0b000, "add", Commutable=1>,
+           Sched<[WriteIALU, ReadIALU, ReadIALU]>;
+// This just demo, not real riscv instruction
+def ADD3  : ALU_rrr<0b0010100, 0b000, "add3", Commutable=1>,
            Sched<[WriteIALU, ReadIALU, ReadIALU]>;
 def SUB  : ALU_rr<0b0100000, 0b000, "sub">,
            Sched<[WriteIALU, ReadIALU, ReadIALU]>;
@@ -1319,7 +1330,7 @@ class immop_oneuse<ImmLeaf leaf> : PatLeaf<(leaf), [{
 }
 
 /// Simple arithmetic operations
-
+// def : Pat<(add GPR:$rd, (add (i32 GPR:$rs1), (i32 GPR:$rs2))), (ADD3 GPR:$rs1, GPR:$rs2, GPR:$rd)>;
 def : PatGprGpr<add, ADD>;
 def : PatGprSimm12<add, ADDI>;
 def : PatGprGpr<sub, SUB>;
