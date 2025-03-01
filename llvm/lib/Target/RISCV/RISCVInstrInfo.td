@@ -574,7 +574,7 @@ class ALU_rr<bits<7> funct7, bits<3> funct3, string opcodestr,
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0, Constraints = "$rd_wb = $rd" in
 class ALU_rrr<bits<7> funct7, bits<3> funct3, string opcodestr,
              bit Commutable = 0>
-    : RVInstR<funct7, funct3, OPC_OP, (outs GPR:$rd_wb), (ins GPR:$rs1, GPR:$rs2, GPR:$rd),
+    : RVInstR<funct7, funct3, OPC_OP, (outs GPRX29X30X31:$rd_wb), (ins GPRX29X30X31:$rs1, GPRX29X30X31:$rs2, GPRX29X30X31:$rd),
               opcodestr, "$rd, $rs1, $rs2"> {
   let isCommutable = Commutable;
 }
@@ -1330,7 +1330,7 @@ class immop_oneuse<ImmLeaf leaf> : PatLeaf<(leaf), [{
 }
 
 /// Simple arithmetic operations
-// def : Pat<(add GPR:$rd, (add (i32 GPR:$rs1), (i32 GPR:$rs2))), (ADD3 GPR:$rs1, GPR:$rs2, GPR:$rd)>;
+def : Pat<(add GPRX29X30X31:$rd, (add (i32 GPRX29X30X31:$rs1), (i32 GPRX29X30X31:$rs2))), (ADD3 GPRX29X30X31:$rs1, GPRX29X30X31:$rs2, GPRX29X30X31:$rd)>;
 def : PatGprGpr<add, ADD>;
 def : PatGprSimm12<add, ADDI>;
 def : PatGprGpr<sub, SUB>;

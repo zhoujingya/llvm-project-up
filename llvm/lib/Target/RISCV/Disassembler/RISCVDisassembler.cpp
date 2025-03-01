@@ -197,6 +197,16 @@ DecodeGPRNoX0X2RegisterClass(MCInst &Inst, uint64_t RegNo, uint32_t Address,
   return DecodeGPRNoX0RegisterClass(Inst, RegNo, Address, Decoder);
 }
 
+static DecodeStatus
+DecodeGPRX29X30X31RegisterClass(MCInst &Inst, uint64_t RegNo, uint32_t Address,
+                             const MCDisassembler *Decoder) {
+  if (RegNo == 29 || RegNo == 30 || RegNo == 31) {
+    return MCDisassembler::Success;
+  }
+
+  return MCDisassembler::Fail;
+}
+
 static DecodeStatus DecodeGPRCRegisterClass(MCInst &Inst, uint32_t RegNo,
                                             uint64_t Address,
                                             const MCDisassembler *Decoder) {

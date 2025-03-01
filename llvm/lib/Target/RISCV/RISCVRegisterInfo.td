@@ -284,6 +284,8 @@ def SR07 : GPRRegisterClass<(add (sequence "X%u", 8, 9),
 
 def GPRX1X5 :  GPRRegisterClass<(add X1, X5)>;
 
+def GPRX29X30X31 : GPRRegisterClass<(add X29, X30, X31)>;
+
 //===----------------------------------------------------------------------===//
 // Even-Odd GPR Pairs
 //===----------------------------------------------------------------------===//
