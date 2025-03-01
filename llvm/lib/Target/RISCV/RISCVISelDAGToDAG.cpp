@@ -891,31 +891,6 @@ void RISCVDAGToDAGISel::Select(SDNode *Node) {
     ReplaceNode(Node, selectImm(CurDAG, DL, VT, Imm, *Subtarget).getNode());
     return;
   }
-  case ISD::ADD: {
-    // Only handle i32 add
-    if (VT != MVT::i32)
-      break;
-    auto LHS = Node->getOperand(0);
-    auto RHS = Node->getOperand(1);
-    // CHeck LSH or RHS is add or not
-    if (LHS->getOpcode() == ISD::ADD && LHS->hasOneUse()) {
-      ReplaceNode(Node, CurDAG->getMachineNode(
-                            RISCV::ADD3, DL, VT, LHS.getNode()->getOperand(0),
-                            LHS.getNode()->getOperand(1), RHS));
-
-      return;
-    }
-
-    if (RHS->getOpcode() == ISD::ADD && RHS->hasOneUse()) {
-      ReplaceNode(Node, CurDAG->getMachineNode(RISCV::ADD3, DL, VT, LHS,
-                                               RHS.getNode()->getOperand(0),
-                                               RHS.getNode()->getOperand(1)));
-      CurDAG->RemoveDeadNode(RHS.getNode());
-      return;
-    }
-
-    break;
-  }
   case ISD::ConstantFP: {
     const APFloat &APF = cast<ConstantFPSDNode>(Node)->getValueAPF();
 

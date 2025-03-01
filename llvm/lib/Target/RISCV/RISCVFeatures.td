@@ -470,6 +470,13 @@ def HasStdExtZbs : Predicate<"Subtarget->hasStdExtZbs()">,
                    AssemblerPredicate<(all_of FeatureStdExtZbs),
                                       "'Zbs' (Single-Bit Instructions)">;
 
+def Feature3Sum
+    : RISCVExtension<1, 0, "3Sum Instructions">,
+      RISCVExtensionBitmask<0, 66>;
+def Has3Sum : Predicate<"Subtarget->has3Sum()">,
+                   AssemblerPredicate<(all_of Feature3Sum),
+                                      "'3sum' (3Sum Instructions)">;
+
 // Bitmanip Extensions for Cryptography Extensions
 
 def FeatureStdExtB

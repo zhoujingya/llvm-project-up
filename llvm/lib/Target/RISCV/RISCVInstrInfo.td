@@ -695,7 +695,8 @@ def SRAI : Shift_ri<0b01000, 0b101, "srai">,
 def ADD  : ALU_rr<0b0000000, 0b000, "add", Commutable=1>,
            Sched<[WriteIALU, ReadIALU, ReadIALU]>;
 // This just demo, not real riscv instruction
-def ADD3  : ALU_rrr<0b0010100, 0b000, "add3", Commutable=1>,
+let Predicates = [Has3Sum] in
+  def ADD3  : ALU_rrr<0b0010100, 0b000, "add3", Commutable=1>,
            Sched<[WriteIALU, ReadIALU, ReadIALU]>;
 def SUB  : ALU_rr<0b0100000, 0b000, "sub">,
            Sched<[WriteIALU, ReadIALU, ReadIALU]>;
@@ -1330,7 +1331,8 @@ class immop_oneuse<ImmLeaf leaf> : PatLeaf<(leaf), [{
 }
 
 /// Simple arithmetic operations
-def : Pat<(add GPRX29X30X31:$rd, (add (i32 GPRX29X30X31:$rs1), (i32 GPRX29X30X31:$rs2))), (ADD3 GPRX29X30X31:$rs1, GPRX29X30X31:$rs2, GPRX29X30X31:$rd)>;
+let Predicates = [Has3Sum] in
+  def : Pat<(add GPRX29X30X31:$rd, (add (i32 GPRX29X30X31:$rs1), (i32 GPRX29X30X31:$rs2))), (ADD3 GPRX29X30X31:$rs1, GPRX29X30X31:$rs2, GPRX29X30X31:$rd)>;
 def : PatGprGpr<add, ADD>;
 def : PatGprSimm12<add, ADDI>;
 def : PatGprGpr<sub, SUB>;
